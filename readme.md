@@ -17,4 +17,8 @@
 - [PyOpenGL](https://www.pyopengl.org/) for the 3D graphics
 - [PyQt5](https://www.riverbankcomputing.com/software/pyqt/download5) for the GUI
 - [Pygame](https://www.pygame.org/) for the audio
+<<<<<<< HEAD
 - I made the music composition myself, literally just breakcore ChordBIRD
+=======
+- I made the music composition myself, literally just breakcore ChordBIRD
+>>>>>>> a6ce8eefb023729dbdf9773d1dfd097e12578056
