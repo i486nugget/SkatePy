@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QApplication, QMainWindow, QOpenGLWidget, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QPushButton
-from PyQt5.QtGui import QImage, QFont, QPixmap
+from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, QEvent
 from OpenGL.GL import *
@@ -20,6 +20,8 @@ class Scene3D(QOpenGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.camera_pos = np.array([0.0, 20.0, 5.0])
         self.camera_rot = np.array([0.0, 0.0, 0.0])
+        self.third_person_camera_pos = np.array([0.0, 25.0, 15.0])
+        self.third_person_camera_rot = np.array([0.0, 0.0, 0.0])
         self.move_speed = 1
         self.rot_speed = 1
         self.keys = set()
@@ -27,8 +29,8 @@ class Scene3D(QOpenGLWidget):
         self.wall_texture = None
         
         self.score = 0
+        self.combo_score = 0
         self.last_move = None
-        self.last_move_count = 0
         self.last_move_time = 0
         
         self.score_label = QLabel(self)
@@ -36,6 +38,7 @@ class Scene3D(QOpenGLWidget):
         self.score_label.setFont(w95fa_font)
         self.score_label.setStyleSheet("color: white;")
         self.score_label.setAlignment(Qt.AlignCenter)
+        self.score_label.hide()  # Initially hidden
         
         self.preview_image = QLabel(self)
         self.preview_image.setGeometry(self.width() - 128, self.height() - 128, 128, 128)
@@ -65,16 +68,26 @@ class Scene3D(QOpenGLWidget):
         self.ollie_preview_path = os.path.join(os.path.dirname(__file__), 'tex', 'birb', 'ollie.png')
 
         self.is_music_playing = False
+        
+        # Third person mode toggle
+        self.is_third_person = False
+        self.third_person_textures = []
+        self.third_person_current_frame = 0
+        self.third_person_frame_timer = QTimer()
+        self.third_person_frame_timer.timeout.connect(self.update_third_person_frame)
+
+    def update_third_person_frame(self):
+        self.third_person_current_frame = (self.third_person_current_frame + 1) % len(self.third_person_textures)
 
     def update_score_label(self):
-        score_text = f"{self.score}"
-        if self.last_move:
-            if self.last_move_count > 1:
-                score_text += f"\n{self.last_move} (x{self.last_move_count})"
-            else:
-                score_text += f"\n{self.last_move}"
-        self.score_label.setText(score_text)
-        self.score_label.show()
+        if self.combo_score > 0:
+            score_text = f"Combo: {self.combo_score}"
+            if self.last_move:
+                score_text = f"{self.last_move} (+{self.score})\n{score_text}"
+            self.score_label.setText(score_text)
+            self.score_label.show()
+        else:
+            self.score_label.hide()
 
     def stop_music(self):
         pygame.mixer.music.stop()
@@ -86,6 +99,7 @@ class Scene3D(QOpenGLWidget):
 
     def load_textures(self):
         floor_path = os.path.join(os.path.dirname(__file__), 'tex', 'brick.png')
+        third_person_path = os.path.join(os.path.dirname(__file__), 'tex', 'birb', 'thirdperson.gif')
         try:
             floor_img = Image.open(floor_path)
             floor_img = floor_img.convert("RGBA")
@@ -100,6 +114,35 @@ class Scene3D(QOpenGLWidget):
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, floor_img.width, floor_img.height, 
                          0, GL_RGBA, GL_UNSIGNED_BYTE, floor_data)
             
+            # Load third person texture
+            third_person_gif = Image.open(third_person_path)
+            self.third_person_textures = []
+            
+            for frame in range(third_person_gif.n_frames):
+                third_person_gif.seek(frame)
+                third_person_img = third_person_gif.convert("RGBA")
+                third_person_img = third_person_img.resize((64, 64), Image.NEAREST)
+                
+                # Create a transparent background
+                background = Image.new('RGBA', third_person_img.size, (0, 0, 0, 0))
+                background.paste(third_person_img, (0, 0), third_person_img)
+                third_person_img = background
+                
+                third_person_data = third_person_img.tobytes()
+                
+                texture = glGenTextures(1)
+                glBindTexture(GL_TEXTURE_2D, texture)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, third_person_img.width, third_person_img.height, 
+                             0, GL_RGBA, GL_UNSIGNED_BYTE, third_person_data)
+                
+                self.third_person_textures.append(texture)
+            
+            self.third_person_frame_timer.start(1000)  # Change frame every 1 second
+            
             return True
         except Exception as e:
             print(f"Error loading textures: {e}")
@@ -108,11 +151,12 @@ class Scene3D(QOpenGLWidget):
     def initializeGL(self):
         glEnable(GL_DEPTH_TEST)
         glEnable(GL_TEXTURE_2D)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glShadeModel(GL_SMOOTH)
         glClearColor(0.2, 0.2, 0.2, 1.0)
         self.load_textures()
         self.preview_image.show()
-        self.score_label.show()
 
     def resizeGL(self, width, height):
         glViewport(0, 50, width, height - 50)
@@ -136,9 +180,16 @@ class Scene3D(QOpenGLWidget):
         gluPerspective(45, self.width() / (self.height() - 50), 0.1, 1000.0)
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
-        glRotatef(self.camera_rot[0], 1, 0, 0)
-        glRotatef(self.camera_rot[1], 0, 1, 0)
-        glTranslatef(-self.camera_pos[0], -self.camera_pos[1], -self.camera_pos[2])
+        
+        # Choose camera based on third person mode
+        if self.is_third_person:
+            glRotatef(self.third_person_camera_rot[0], 1, 0, 0)
+            glRotatef(self.third_person_camera_rot[1], 0, 1, 0)
+            glTranslatef(-self.third_person_camera_pos[0], -self.third_person_camera_pos[1], -self.third_person_camera_pos[2])
+        else:
+            glRotatef(self.camera_rot[0], 1, 0, 0)
+            glRotatef(self.camera_rot[1], 0, 1, 0)
+            glTranslatef(-self.camera_pos[0], -self.camera_pos[1], -self.camera_pos[2])
         
         if self.floor_texture:
             glBindTexture(GL_TEXTURE_2D, self.floor_texture)
@@ -148,10 +199,30 @@ class Scene3D(QOpenGLWidget):
             glTexCoord2f(100, 100); glVertex3f(1000, 0, 1000)
             glTexCoord2f(0, 100); glVertex3f(-1000, 0, 1000)
             glEnd()
+        
+        # Draw third person texture when in third person mode
+        if self.is_third_person and self.third_person_textures:
+            current_texture = self.third_person_textures[self.third_person_current_frame]
+            glBindTexture(GL_TEXTURE_2D, current_texture)
+            glBegin(GL_QUADS)
+            glTexCoord2f(0, 0); glVertex3f(self.camera_pos[0] - 5, 20, self.camera_pos[2])
+            glTexCoord2f(1, 0); glVertex3f(self.camera_pos[0] + 5, 20, self.camera_pos[2])
+            glTexCoord2f(1, 1); glVertex3f(self.camera_pos[0] + 5, 0, self.camera_pos[2])
+            glTexCoord2f(0, 1); glVertex3f(self.camera_pos[0] - 5, 0, self.camera_pos[2])
+            glEnd()
 
         self.update_stats()
 
     def update_scene(self):
+        current_time = time.time()
+        
+        # Check if streak is lost
+        if self.last_move_time > 0 and current_time - self.last_move_time >= 5:
+            self.combo_score = 0
+            self.last_move = None
+            self.last_move_time = 0
+            self.update_score_label()
+
         if not self.hasFocus():
             return
 
@@ -207,6 +278,15 @@ class Scene3D(QOpenGLWidget):
             new_pos[2] = 1000
 
         self.camera_pos = new_pos
+        
+        # Update third person camera position and rotation
+        if self.is_third_person:
+            self.third_person_camera_pos = np.array([
+                self.camera_pos[0], 
+                self.camera_pos[1] + 5, 
+                self.camera_pos[2] + 10
+            ])
+            self.third_person_camera_rot = self.camera_rot.copy()
 
         if Qt.Key_Left in self.keys:
             self.camera_rot[1] -= self.rot_speed
@@ -231,13 +311,13 @@ class Scene3D(QOpenGLWidget):
             
             current_time = time.time()
             if self.last_move == 'Ollie' and current_time - self.last_move_time < 5:
-                self.last_move_count += 1
+                self.combo_score += 100
             else:
-                self.last_move = 'Ollie'
-                self.last_move_count = 1
+                self.combo_score = 100
             
+            self.score = 100
+            self.last_move = 'Ollie'
             self.last_move_time = current_time
-            self.score += 100
             self.update_score_label()
         
         if event.key() == Qt.Key_P:
@@ -248,6 +328,10 @@ class Scene3D(QOpenGLWidget):
             else:
                 pygame.mixer.music.stop()
                 self.is_music_playing = False
+        
+        # Toggle third person mode
+        if event.key() == Qt.Key_T:
+            self.is_third_person = not self.is_third_person
 
     def keyReleaseEvent(self, event):
         self.keys.discard(event.key())
