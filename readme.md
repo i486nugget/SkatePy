@@ -21,4 +21,3 @@
 - I made the music composition myself, literally just breakcore ChordBIRD
 =======
 - I made the music composition myself, literally just breakcore ChordBIRD
->>>>>>> a6ce8eefb023729dbdf9773d1dfd097e12578056
