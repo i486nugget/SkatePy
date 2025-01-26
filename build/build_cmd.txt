@@ -1,0 +1,1 @@
+pyinstaller --name "SkatePy" --onefile --noconsole --windowed --icon=../icon.ico --distpath build --workpath build --specpath build --add-data ../"bgm;bgm" --add-data ../"html;html" --add-data ../"tex;tex" skate.py

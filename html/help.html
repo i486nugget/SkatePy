@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkatePy</title>
+    <title>Help</title>
     <style>
         body {
             display: flex;
@@ -13,16 +13,24 @@
             height: 100vh;
             margin: 0;
             background-color: black;
+            color: #808080;
+            font-family: 'Times New Roman', sans-serif;
         }
         img {
             max-width: 100%;
             height: auto;
         }
         .text {
-            color: #808080;
-            font-family: 'Times New Roman', sans-serif;
             font-size: 24px;
             margin-top: 50px;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            text-align: ju;
+        }
+        li {
+            margin: 10px 0;
         }
         button {
             position: absolute;
@@ -43,8 +51,18 @@
     </style>
 </head>
 <body>
-    <img src="../tex/HTML/title.png">
-    <div class="text">Click the play button below.</div>
-    <a href="help.html"><button>Help</button></a>
+    <img src="../tex/HTML/help.png">
+    <div class="text">Game Controls</div>
+    <ul>
+        <li>W: Move Forward</li>
+        <li>S: Slow Down</li>
+        <li>A: Move Left / Rotate Left</li>
+        <li>D: Move Right / Rotate Right</li>
+        <li>Arrow Keys: Camera Rotation</li>
+        <li>Space: Ollie</li>
+        <li>P: Toggle Music</li>
+        <li>T: Toggle Third Person View</li>
+    </ul>
+    <a href="title.html"><button>Return</button></a>
 </body>
 </html>
